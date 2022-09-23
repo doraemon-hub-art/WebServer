@@ -18,14 +18,13 @@ int main(int argc, char *argv[]){
 		exit(5);
 	}
 
-	ConnectStat * stat = stat_init(listen_sock);// 创建连接状态结构体
+	ConnectStat * stat = stat_init(listen_ sock);// 创建连接状态结构体
 
 	struct epoll_event _ev; 	//epoll事件结构体
 	_ev.events = EPOLLIN;    	//设置关心事件为读事件     
 	_ev.data.ptr = stat;    	//接收返回值
 	
 
-	//托管
     //将listen_sock添加到epfd中，关心读事件，有客户端来请求
 	epoll_ctl(epfd, EPOLL_CTL_ADD, listen_sock, &_ev);
 
