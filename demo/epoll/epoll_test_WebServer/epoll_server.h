@@ -16,9 +16,9 @@ typedef struct _ConnectStat  ConnectStat;
 
 typedef void(*response_handler) (ConnectStat * stat);
 
-// 保存链接状态的结构体
+// 保存自定义数据的结构体，调用epoll时用epoll_data_t中的ptr存储
 struct _ConnectStat {
-	int fd;						//句柄
+	int fd;						//文件描述符
 	char name[64];				//姓名
 	char  age[64];				//年龄
 	struct epoll_event _ev;		//当前文件句柄对应epoll事件
@@ -26,9 +26,15 @@ struct _ConnectStat {
 	response_handler handler;	//不同页面的处理函数
 };
 
-//http协议相关代码
+
+// 初始化一个自定义数据存储结构体
 ConnectStat * stat_init(int fd);
+
+//http协议相关代码
+
+// 将新链接进来的客户端fd放入当前epoll所对应的内核事件表中
 void connect_handle(int new_fd);
+
 void do_http_respone(ConnectStat * stat);
 void do_http_request(ConnectStat * stat);
 void welcome_response_handler(ConnectStat * stat);
@@ -83,7 +89,7 @@ int startup(char* _ip, int _port){
 }
 
 
-// 初始化链接状态结构体
+// 初始化自定义数据存储结构体
 ConnectStat * stat_init(int fd) {
 	ConnectStat * temp = NULL;
 	temp = (ConnectStat *)malloc(sizeof(ConnectStat));
@@ -99,7 +105,7 @@ ConnectStat * stat_init(int fd) {
 
 }
 
-//初始化连接，然后等待浏览器发送请求
+// 将新链接进来的客户端fd放入当前epoll所对应的内核事件表中
 void connect_handle(int new_fd) {
 	ConnectStat *stat = stat_init(new_fd);
 	set_nonblock(new_fd);
@@ -111,9 +117,10 @@ void connect_handle(int new_fd) {
 
 }
 
+
 // 进行响应
 void do_http_respone(ConnectStat * stat) {
-	stat->handler(stat);// 使用函数指针调用设置的页面处理函数
+	stat->handler(stat);// 调用对应设置的函数
 }
 
 // 解析http请求
@@ -122,38 +129,36 @@ void do_http_request(ConnectStat * stat) {
 	//读取和解析http 请求
 	char buf[4096];
 	char * pos = NULL;
-	//while  header \r\n\r\ndata
-	ssize_t _s = read(stat->fd, buf, sizeof(buf) - 1);
-	if (_s > 0)
-	{
-		buf[_s] = '\0';
-		
-		printf("receive from client:%s\n", buf);
 
+	ssize_t _s = read(stat->fd, buf, sizeof(buf) - 1);
+	if (_s > 0){// 读取到数据
+		buf[_s] = '\0';
+		// printf("receive from client:%s\n", buf);//GET / HTTP/1.1
 		pos = buf;
 
 		//Demo 仅仅演示效果，不做详细的协议解析
-		if (!strncasecmp(pos, "GET", 3)) {
-			stat->handler = welcome_response_handler;
-		}
-		else if (!strncasecmp(pos, "Post", 4)) {
+		if (!strncasecmp(pos, "GET", 3)) {// 是否为Get请求
+			stat->handler = welcome_response_handler;// 设置执行函数
+		}else if (!strncasecmp(pos, "Post", 4)) {// 是否为POST请求
 			//获取 uri
-			printf("---Post----\n");
+			//printf("---Post----\n");
 			pos += strlen("Post");
 			while (*pos == ' ' || *pos == '/') ++pos;
 
-			if (!strncasecmp(pos, "commit", 6)) {//获取名字和年龄
+			// POST /commit HTTP/1.1
+			if (!strncasecmp(pos, "commit", 6)) {//提交
 				int len = 0;
 
-				printf("post commit --------\n");
-				pos = strstr(buf, "\r\n\r\n");
+				//printf("post commit --------\n");
+				pos = strstr(buf, "\r\n\r\n");//返回第一次出现\r\n\r\n的位置
 				char *end = NULL;
+				// 拿到姓名与年龄
 				if (end = strstr(pos, "name=")) {
 					pos = end + strlen("name=");
 					end = pos;
 					while (('a' <= *end && *end <= 'z') || ('A' <= *end && *end <= 'Z') || ('0' <= *end && *end <= '9'))	end++;
 					len = end - pos;
-					if (len > 0) {
+					if (len > 0) {// 将姓名存入自定义结构体中
 						memcpy(stat->name, pos, end - pos);
 						stat->name[len] = '\0';
 					}
@@ -164,40 +169,37 @@ void do_http_request(ConnectStat * stat) {
 					end = pos;
 					while ('0' <= *end && *end <= '9')	end++;
 					len = end - pos;
-					if (len > 0) {
+					if (len > 0) {// 将年龄存入自定义结构体中
 						memcpy(stat->age, pos, end - pos);
 						stat->age[len] = '\0';
 					}
 				}
-				stat->handler = commit_respone_handler;
+				stat->handler = commit_respone_handler;// 设置响应函数
 
 			}
 			else {
-				stat->handler = welcome_response_handler;
+				stat->handler = welcome_response_handler;// 设置响应函数
 			}
 
 		}
 		else {
-			stat->handler = welcome_response_handler;
+			stat->handler = welcome_response_handler;// 设置响应函数
 		}
 
-		//生成处理结果 html ,write
-
-		stat->_ev.events = EPOLLOUT;
-		//stat->_ev.data.ptr = stat;
-		epoll_ctl(epfd, EPOLL_CTL_MOD, stat->fd, &stat->_ev);   //二次托管
-	}else if (_s == 0){//client:close
+		stat->_ev.events = EPOLLOUT;	// 修改事件类型
+		epoll_ctl(epfd, EPOLL_CTL_MOD, stat->fd, &stat->_ev);   //修改，交给eoill监视。
+	}else if (_s == 0){// 没有读取到数据，客户端关闭。
 		printf("client: %d close\n", stat->fd);
-		epoll_ctl(epfd, EPOLL_CTL_DEL, stat->fd, NULL);
-		close(stat->fd);
-		free(stat);
-	}else{
+		epoll_ctl(epfd, EPOLL_CTL_DEL, stat->fd, NULL);// 将对应fd从对应epoll的内核事件表中删除
+		close(stat->fd);// 关闭套接字
+		free(stat);	// 释放内存
+	}else{// read发生错误
 		perror("read");
 	}
 
 }
 
-// 直接访问给出的响应-write给stat-fd
+// 直接访问给出的响应
 void welcome_response_handler(ConnectStat * stat) {
 	const char * welcome_content = "\
 			<html lang=\"zh-CN\">\n\
@@ -231,7 +233,7 @@ void welcome_response_handler(ConnectStat * stat) {
 	// 写给客户端-即发起请求的浏览器
 	write(stat->fd, sendbuffer, strlen(sendbuffer));
 
-	stat->_ev.events = EPOLLIN;
+	stat->_ev.events = EPOLLIN;		// 修改关心的事件
 	//stat->_ev.data.ptr = stat;
 	epoll_ctl(epfd, EPOLL_CTL_MOD, stat->fd, &stat->_ev);
 
@@ -269,7 +271,7 @@ void commit_respone_handler(ConnectStat * stat) {
 
 	write(stat->fd, sendbuffer, strlen(sendbuffer));
 
-	stat->_ev.events = EPOLLIN; // 读事件-客户端fd来读
+	stat->_ev.events = EPOLLIN; // 修改关心的事件
 
 	epoll_ctl(epfd, EPOLL_CTL_MOD, stat->fd, &stat->_ev);// 交给epoll来监视
 }

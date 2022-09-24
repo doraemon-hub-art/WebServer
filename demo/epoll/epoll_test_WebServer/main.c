@@ -11,24 +11,23 @@ int main(int argc, char *argv[]){
 	int listen_sock = startup(argv[1], atoi(argv[2]));      
 
 	//创建epoll
-    //设置可处理的最大句柄数为256,其实实际上并没有限制，感觉这个接口有点被弃用了。 
 	epfd = epoll_create(256);
 	if (epfd < 0){//创建失败
 		perror("epoll_create");
 		exit(5);
 	}
 
-	ConnectStat * stat = stat_init(listen_ sock);// 创建连接状态结构体
+	ConnectStat * stat = stat_init(listen_sock);// 自定义数据存储
 
 	struct epoll_event _ev; 	//epoll事件结构体
 	_ev.events = EPOLLIN;    	//设置关心事件为读事件     
 	_ev.data.ptr = stat;    	//接收返回值
 	
 
-    //将listen_sock添加到epfd中，关心读事件，有客户端来请求
+    //将listen_sock添加到epfd中，关心读事件，有客户端来请求链接
 	epoll_ctl(epfd, EPOLL_CTL_ADD, listen_sock, &_ev);
 
-	struct epoll_event revs[64];//epoll事件结构体
+	struct epoll_event revs[64];//接收返回的产生响应的事件
 
 	int timeout = -1;// -1无限期阻塞
 	int num = 0;// 就绪的请求I/O个数
@@ -51,21 +50,19 @@ int main(int argc, char *argv[]){
                 //拿到该fd相关的链接信息
 				ConnectStat * stat = (ConnectStat *)revs[i].data.ptr;
 
-				int rsock = stat->fd; //server socket 读，即有客户端链接
-				if (rsock == listen_sock && (revs[i].events) && EPOLLIN) {
+				int rsock = stat->fd;//拿到对应的fd，进行如下的判断
+				if (rsock == listen_sock && (revs[i].events) && EPOLLIN) {// 有客户端链接
 					int new_fd = accept(listen_sock, (struct sockaddr*)&peer, &len);
-                    
-                    //有client链接
-					if (new_fd > 0){
+					
+					if (new_fd > 0){//accept成功
 						printf("get a new client:%s:%d\n", inet_ntoa(peer.sin_addr), ntohs(peer.sin_port));	
-						connect_handle(new_fd);
+						connect_handle(new_fd);// 监听新进来的客户端fd
 					}
 				}else {//除server socket 之外的其他fd就绪
-					printf("test\n");
-					if (revs[i].events & EPOLLIN){//读
+					if (revs[i].events & EPOLLIN){//有数据可读
 						do_http_request((ConnectStat *)revs[i].data.ptr);
 					}else if (revs[i].events & EPOLLOUT){//写
-						do_http_respone((ConnectStat *)revs[i].data.ptr);
+						do_http_respone((ConnectStat *)revs[i].data.ptr);// 完成响应后会再次关心EPOLLIN事件，等待下一次请求。					
 					}else{
 					}
 				}
