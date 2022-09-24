@@ -35,9 +35,15 @@ ConnectStat * stat_init(int fd);
 // 将新链接进来的客户端fd放入当前epoll所对应的内核事件表中
 void connect_handle(int new_fd);
 
+// 请求响应-根据指定的处理函数
 void do_http_respone(ConnectStat * stat);
+
+// 处理http请求
 void do_http_request(ConnectStat * stat);
+
+// 响应处理函数——请求链接返回的内容
 void welcome_response_handler(ConnectStat * stat);
+// 响应处理函数——commit后返回的内容
 void commit_respone_handler(ConnectStat * stat);
 
 
@@ -45,6 +51,7 @@ const char *main_header = "HTTP/1.0 200 OK\r\nServer: Xuanxuan Server\r\nContent
 
 static int epfd = 0;
 
+// 打印信息提示ip:port
 void usage(const char* argv)
 {
 	printf("%s:[ip][port]\n", argv);
@@ -224,7 +231,7 @@ void welcome_response_handler(ConnectStat * stat) {
 	char sendbuffer[4096];
 	char content_len[64];
 
-	strcpy(sendbuffer, main_header);
+	strcpy(sendbuffer, main_header);// 拷贝响应头
 	snprintf(content_len, 64, "Content-Length: %d\r\n\r\n", (int)strlen(welcome_content));
 	strcat(sendbuffer, content_len);
 	strcat(sendbuffer, welcome_content);
@@ -263,11 +270,11 @@ void commit_respone_handler(ConnectStat * stat) {
 	int len = 0;
 
 	len = snprintf(content, 4096, commit_content, stat->name, stat->age);
-	strcpy(sendbuffer, main_header);
+	strcpy(sendbuffer, main_header); //响应头
 	snprintf(content_len, 64, "Content-Length: %d\r\n\r\n", len);
 	strcat(sendbuffer, content_len);
 	strcat(sendbuffer, content);
-	printf("send reply to client \n%s", sendbuffer);
+	//printf("send reply to client \n%s", sendbuffer);
 
 	write(stat->fd, sendbuffer, strlen(sendbuffer));
 
