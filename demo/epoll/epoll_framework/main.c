@@ -29,13 +29,12 @@ void set_nonblock(int fd)
 	fcntl(fd, F_SETFL, fl | O_NONBLOCK);
 }
 
-int startup(char* _ip, int _port)  //创建一个套接字，绑定，检测服务器
-{
+// 创建一个套接字，绑定，检测服务器
+int startup(char* _ip, int _port){
 	//sock
 	//1.创建套接字
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
-	if (sock < 0)
-	{
+	if (sock < 0){
 		perror("sock");
 		exit(2);
 	}
@@ -50,14 +49,12 @@ int startup(char* _ip, int _port)  //创建一个套接字，绑定，检测服�
 	local.sin_addr.s_addr = inet_addr(_ip);
 
 	//3.bind（）绑定
-	if (bind(sock, (struct sockaddr*)&local, sizeof(local)) < 0)
-	{
+	if (bind(sock, (struct sockaddr*)&local, sizeof(local)) < 0){
 		perror("bind");
 		exit(3);
 	}
 	//4.listen（）监听 检测服务器
-	if (listen(sock, 5) < 0)
-	{
+	if (listen(sock, 5) < 0){
 		perror("listen");
 		exit(4);
 	}
@@ -86,12 +83,10 @@ void do_welcome_handler(int fd, void  *data) {
 	int n ;
 	ConnectStat * stat = (ConnectStat *)(data);
 	
-	if( (n = write(fd, "Welcome.\n",wlen)) != wlen ){
-		
+	if( (n = write(fd, "Welcome.\n",wlen)) != wlen ){		
 		if(n<=0){
 		    fprintf(stderr, "write failed[len:%d], reason: %s\n",n,strerror(errno));
-		}else fprintf(stderr, "send %d bytes only ,need to send %d bytes.\n",n,wlen);
-		
+		}else fprintf(stderr, "send %d bytes only ,need to send %d bytes.\n",n,wlen);		
 	}else {
 		commUpdateReadHandler(fd, do_echo_handler,(void *)stat);
 		commSetTimeout(fd, 10, do_echo_timeout, (void *)stat);
@@ -103,9 +98,7 @@ void do_echo_handler(int fd, void  *data) {
 	ConnectStat * stat = (ConnectStat *)(data);
 	char * p = NULL;
 	
-	assert(stat!=NULL);
-	
-	
+	assert(stat!=NULL);// 成立不报错
 	p = stat->send_buf;
 	*p++ = '-';
 	*p++ = '>';
@@ -191,15 +184,15 @@ void do_echo_timeout(int fd, void *data){
 
 int main(int argc,char **argv){
 
-	if (argc != 3)     //检测参数个数是否正确
-	{
+	if (argc != 3){// 检测参数个数是否正确     
 		usage(argv[0]);
 		exit(1);
 	}
 
-	int listen_sock = startup(argv[1], atoi(argv[2]));      //创建一个绑定了本地 ip 和端口号的套接字描述符
-	//初始化异步事件处理框架epoll
-	
+	// 创建一个绑定了本地 ip 和端口号的套接字描述符
+	int listen_sock = startup(argv[1], atoi(argv[2]));      
+
+	// 初始化异步事件处理框架epoll
 	comm_init(102400);
 	
 	ConnectStat * stat = stat_init(listen_sock);
