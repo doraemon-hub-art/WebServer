@@ -83,33 +83,52 @@ LINE_STATUS parse_line( char* buffer, int& checked_index, int& read_index )
     return LINE_OPEN;// 行数据不完整
 }
 
-HTTP_CODE parse_requestline( char* szTemp, CHECK_STATE& checkstate )
-{
+// 分析请求行-格式: GET /index.html HTTP/1.1
+HTTP_CODE parse_requestline( char* szTemp, CHECK_STATE& checkstate ){
+
+    // szTemp = 
+    // printf("test: %s\n",szTemp);
+    // szTemp中搜索\t，找到返回所在位置的指针
+    /*
+        一开始没有想好这个\t是什么意思，详见http请求报文。
+        \t就是空格
+    */ 
     char* szURL = strpbrk( szTemp, " \t" );
-    if ( ! szURL ){
-        return BAD_REQUEST;
-    }
-    *szURL++ = '\0';
 
-    char* szMethod = szTemp;
-    if ( strcasecmp( szMethod, "GET" ) == 0 ){
-        printf( "The request method is GET\n" );
+    if ( ! szURL ){ // 请求行中没有空白字符或\t字符，则HTTP请求必有问题。
+        return BAD_REQUEST;// 请求中有语法错误
     }
-    else{
-        return BAD_REQUEST;
-    }
+    *szURL++ = '\0';// 将\t用\0覆盖，然后++指针，指向后面的内容。
+    // 此时szURL内容为/index.html HTTP/1.1
 
+    char* szMethod = szTemp;// 保存请求的方法,到\0会被截断。
+    if ( strcasecmp( szMethod, "GET" ) == 0 ){// 判断get请求
+        printf( "The request method is： GET\n" );
+    }else{
+        return BAD_REQUEST; // 返回请求错误
+    }
+    
+    // 下一条请求头
+    // 跳过下一部分数据前面多余的空格
     szURL += strspn( szURL, " \t" );
+    // 先拿到http版本,跳过了/index.html
     char* szVersion = strpbrk( szURL, " \t" );
     if ( ! szVersion ){
         return BAD_REQUEST;
     }
-    *szVersion++ = '\0';
+    *szVersion++ = '\0';// 将\t替换为\0,
+
+    // 跳过下一部分数据前面多余的空格
+    // 此时szVersion = HTTP/1.1
+    
+    //跳过http/1.1信息前面多余的空格
     szVersion += strspn( szVersion, " \t" );
+    // 为什么这里没有长度限制了，因为请求行最后一段就是http版本
+    // 是否为http/1.1
     if ( strcasecmp( szVersion, "HTTP/1.1" ) != 0 ){
         return BAD_REQUEST;
     }
-
+    // 回头来检查url是否合法
     if ( strncasecmp( szURL, "http://", 7 ) == 0 ){
         szURL += 7;
         szURL = strchr( szURL, '/' );
@@ -121,25 +140,26 @@ HTTP_CODE parse_requestline( char* szTemp, CHECK_STATE& checkstate )
 
     //URLDecode( szURL );
     printf( "The request URL is: %s\n", szURL );
+
+    // http请求行处理完毕，状态转移到头部字段分析。
     checkstate = CHECK_STATE_HEADER;
-    return NO_REQUEST;
+    return NO_REQUEST;// 当前返回NO_REQUEST无意义。
 }
 
-HTTP_CODE parse_headers( char* szTemp )
-{
-    if ( szTemp[ 0 ] == '\0' )
-    {
+// 分析头部字段
+HTTP_CODE parse_headers( char* szTemp ){
+    if ( szTemp[ 0 ] == '\0' ){// 遇到空行说明我们得到了一个正确的http请求,在头部最后，还有一个空行。
+        printf("test\n");
         return GET_REQUEST;
     }
-    else if ( strncasecmp( szTemp, "Host:", 5 ) == 0 )
-    {
+    else if ( strncasecmp( szTemp, "Host:", 5 ) == 0 ){
         szTemp += 5;
         szTemp += strspn( szTemp, " \t" );
         printf( "the request host is: %s\n", szTemp );
     }
-    else
-    {
-        printf( "I can not handle this header\n" );
+    else{// 其它头部信息
+        //printf( "I can not handle this header\n" );
+        printf("%s\n",szTemp);
     }
 
     return NO_REQUEST;
@@ -164,18 +184,18 @@ HTTP_CODE parse_content( char* buffer, int& checked_index, CHECK_STATE& checksta
     while( ( linestatus = parse_line( buffer, checked_index, read_index ) ) == LINE_OK ){// 一行一行开始解析
 
         // 成功读全了一行， 进入到这里
-        char* szTemp = buffer + start_line;// 当前读取到的一行数据头
+        char* szTemp = buffer + start_line;// start_index是在buffer中的起始位置
         start_line = checked_index;// 更新下标，下一行的起始位置。
         switch ( checkstate ){// 主状态机的当前状态
-            case CHECK_STATE_REQUESTLINE:{// 分析请求行
-                retcode = parse_requestline( szTemp, checkstate );
+            case CHECK_STATE_REQUESTLINE:{// 分析请求行-get/post...
+                retcode = parse_requestline( szTemp, checkstate );// 处理http请求的结果
                 if ( retcode == BAD_REQUEST ){
                     return BAD_REQUEST;
                 }
                 break;
             }
             case CHECK_STATE_HEADER:{// 分析头部字段
-                retcode = parse_headers( szTemp );
+                retcode = parse_headers( szTemp );// 每次读取到的数据是会更新的。
                 if ( retcode == BAD_REQUEST ){
                     return BAD_REQUEST;
                 }
@@ -191,13 +211,11 @@ HTTP_CODE parse_content( char* buffer, int& checked_index, CHECK_STATE& checksta
             }
         }
     }
-    if( linestatus == LINE_OPEN )
-    {
-        return NO_REQUEST;
+    if( linestatus == LINE_OPEN ){// 没有读取到完整的一行
+        return NO_REQUEST;  // 返回请求不完整
     }
-    else
-    {
-        return BAD_REQUEST;
+    else{
+        return BAD_REQUEST;// 客户请求有语法错误
     }
 }
 
@@ -255,12 +273,12 @@ int main( int argc, char* argv[] ){
     
             read_index += data_read;// 更新当前读取数据的数量
             HTTP_CODE result = parse_content( buffer, checked_index, checkstate, read_index, start_line );// 
-            if( result == NO_REQUEST ){
+            if( result == NO_REQUEST ){// 继续读取数据
                 continue;
-            }else if( result == GET_REQUEST ){
+            }else if( result == GET_REQUEST ){// 获得了一个完整的客户请求
                 send( fd, szret[0], strlen( szret[0] ), 0 );
                 break;
-            }else{
+            }else{// 错误
                 send( fd, szret[1], strlen( szret[1] ), 0 );
                 break;
             }
