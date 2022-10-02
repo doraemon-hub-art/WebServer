@@ -63,66 +63,59 @@ LINE_STATUS parse_line( char* buffer, int& checked_index, int& read_index )
             }
             // 下一个就是\n,说明我们读取到了一个完整的行。
             else if ( buffer[ checked_index + 1 ] == '\n' ){
+                buffer[ checked_index++ ] = '\0';// 添加字符串结束符
                 buffer[ checked_index++ ] = '\0';
-                buffer[ checked_index++ ] = '\0';
-                return LINE_OK;
+                // 读取到完整的一行，准备交给主状态机进行处理
+                return LINE_OK;// 读取到完整的一行
             }
-            return LINE_BAD;
+            return LINE_BAD;// 否则返回当前行数据出错
         }
-        else if( temp == '\n' )
-        {
-            if( ( checked_index > 1 ) &&  buffer[ checked_index - 1 ] == '\r' )
-            {
+        else if( temp == '\n' ){//当前的字符是\n,说明也可能读到一个完整的行
+            // 进一步判断
+            if( ( checked_index > 1 ) &&  buffer[ checked_index - 1 ] == '\r' ){
                 buffer[ checked_index-1 ] = '\0';
                 buffer[ checked_index++ ] = '\0';
-                return LINE_OK;
+                return LINE_OK; // 是完整行
             }
-            return LINE_BAD;
+            return LINE_BAD;// 行出错
         }
     }
-    return LINE_OPEN;
+    return LINE_OPEN;// 行数据不完整
 }
 
 HTTP_CODE parse_requestline( char* szTemp, CHECK_STATE& checkstate )
 {
     char* szURL = strpbrk( szTemp, " \t" );
-    if ( ! szURL )
-    {
+    if ( ! szURL ){
         return BAD_REQUEST;
     }
     *szURL++ = '\0';
 
     char* szMethod = szTemp;
-    if ( strcasecmp( szMethod, "GET" ) == 0 )
-    {
+    if ( strcasecmp( szMethod, "GET" ) == 0 ){
         printf( "The request method is GET\n" );
     }
-    else
-    {
+    else{
         return BAD_REQUEST;
     }
 
     szURL += strspn( szURL, " \t" );
     char* szVersion = strpbrk( szURL, " \t" );
-    if ( ! szVersion )
-    {
+    if ( ! szVersion ){
         return BAD_REQUEST;
     }
     *szVersion++ = '\0';
     szVersion += strspn( szVersion, " \t" );
-    if ( strcasecmp( szVersion, "HTTP/1.1" ) != 0 )
-    {
+    if ( strcasecmp( szVersion, "HTTP/1.1" ) != 0 ){
         return BAD_REQUEST;
     }
 
-    if ( strncasecmp( szURL, "http://", 7 ) == 0 )
-    {
+    if ( strncasecmp( szURL, "http://", 7 ) == 0 ){
         szURL += 7;
         szURL = strchr( szURL, '/' );
     }
 
-    if ( ! szURL || szURL[ 0 ] != '/' )
-    {
+    if ( ! szURL || szURL[ 0 ] != '/' ){
         return BAD_REQUEST;
     }
 
@@ -170,17 +163,18 @@ HTTP_CODE parse_content( char* buffer, int& checked_index, CHECK_STATE& checksta
     // 如果没读到头，就继续处理。
     while( ( linestatus = parse_line( buffer, checked_index, read_index ) ) == LINE_OK ){// 一行一行开始解析
 
-        char* szTemp = buffer + start_line;
-        start_line = checked_index;
-        switch ( checkstate ){
-            case CHECK_STATE_REQUESTLINE:{
+        // 成功读全了一行， 进入到这里
+        char* szTemp = buffer + start_line;// 当前读取到的一行数据头
+        start_line = checked_index;// 更新下标，下一行的起始位置。
+        switch ( checkstate ){// 主状态机的当前状态
+            case CHECK_STATE_REQUESTLINE:{// 分析请求行
                 retcode = parse_requestline( szTemp, checkstate );
                 if ( retcode == BAD_REQUEST ){
                     return BAD_REQUEST;
                 }
                 break;
             }
-            case CHECK_STATE_HEADER:{
+            case CHECK_STATE_HEADER:{// 分析头部字段
                 retcode = parse_headers( szTemp );
                 if ( retcode == BAD_REQUEST ){
                     return BAD_REQUEST;
@@ -191,7 +185,7 @@ HTTP_CODE parse_content( char* buffer, int& checked_index, CHECK_STATE& checksta
                 }
                 break;
             }
-            default:
+            default:    // 报错
             {
                 return INTERNAL_ERROR;
             }
