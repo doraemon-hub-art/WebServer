@@ -175,10 +175,12 @@ HTTP_CODE parse_headers( char* szTemp ){
         当前已经读取了多少字节的数据
         接收缓冲区中的起始位置
 
-*/ 
+*/
+
+// 主状态机-分析http请求的入口函数
 HTTP_CODE parse_content( char* buffer, int& checked_index, CHECK_STATE& checkstate, int& read_index, int& start_line ){
 
-    LINE_STATUS linestatus = LINE_OK;
+    LINE_STATUS linestatus = LINE_OK;// 从状态机状态
     HTTP_CODE retcode = NO_REQUEST;
     // 如果没读到头，就继续处理。
     while( ( linestatus = parse_line( buffer, checked_index, read_index ) ) == LINE_OK ){// 一行一行开始解析
