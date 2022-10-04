@@ -19,5 +19,6 @@ int main(void){
 /*
 
     为什么本代码中的就可以修改，因为szTemp是指向buffer的！
+    push
     
 */
