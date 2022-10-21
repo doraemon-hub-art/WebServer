@@ -8,6 +8,7 @@
         "limits": "c",
         "*.tcc": "c",
         "type_traits": "c",
-        "typeinfo": "c"
+        "typeinfo": "c",
+        "ostream": "cpp"
     }
 }
