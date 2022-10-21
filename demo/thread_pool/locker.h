@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 #include <exception>
+#include 
 
 // 线程同步机制封装类
 
@@ -43,12 +44,33 @@ public:
             throw std::exception();
         }
     }
-    ~cond(){
 
+    ~cond(){
+        pthread_cond_destroy(&m_cond);
+    }
+    
+    bool timewait(pthread_mutex_t* mutex,struct timespec t){
+        return pthread_cond_timedwait(&m_cond,mutex,&t) == 0;
+    }
+
+    bool signal(){// 唤醒一个的等待线程
+        return pthread_cond_signal(&m_cond);
+    }
+
+    bool boradcast(){// 唤醒所有等待线程
+        return pthread_cond_broadcast(&m_cond) == 0;
     }
 private:
-    pthread_cond_t m_cond;
-}
+    pthread_cond_t m_cond;  
+};
+
+// 信号量类
+class sem{
+public:
+
+private:
+
+};
 
 
 
