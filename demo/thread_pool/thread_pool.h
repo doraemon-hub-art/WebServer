@@ -16,7 +16,7 @@ public:
     // 默认线程数量与请求队列数量
     thread_pool(int thread_number = 8,int max_request = 1000);
     ~thread_pool();
-    bool append(T* request;// 添加任务
+    bool append(T* request);// 添加任务
 
 private:
     static void* worker(void* arg);// 执行函数,需要注意的是，静态成员，无法访问非静态成员。
