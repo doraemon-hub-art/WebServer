@@ -5,6 +5,7 @@
 #include <list>
 #include <exception>
 #include "locker.h"
+#include "http_conn.h"
 #include <cstdio>
 
 // 线程池类，定义成模板类是为了代码的复用。
@@ -125,7 +126,7 @@ void thread_pool<T>::run(){
         }
 
         // 执行任务
-        request->pocess();
+        request->process();
     }
     
 }
