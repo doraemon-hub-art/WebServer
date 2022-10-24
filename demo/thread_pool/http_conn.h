@@ -92,6 +92,7 @@ private:
     METHOD m_method;// 请求方法
     char* m_host; // 主机名
     bool m_linger; // HTTP请求是否要保持连接
+    int m_content_length;   // 消息体信息
 };
 
 

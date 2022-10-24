@@ -1,5 +1,20 @@
 #include "http_conn.h"
 
+// 定义HTTP响应的一些状态信息
+const char* ok_200_title = "OK";
+const char* error_400_title = "Bad Request";
+const char* error_400_form = "Your request has bad syntax or is inherently impossible to satisfy.\n";
+const char* error_403_title = "Forbidden";
+const char* error_403_form = "You do not have permission to get file from this server.\n";
+const char* error_404_title = "Not Found";
+const char* error_404_form = "The requested file was not found on this server.\n";
+const char* error_500_title = "Internal Error";
+const char* error_500_form = "There was an unusual problem serving the requested file.\n";
+
+// 网站的根目录
+const char* doc_root = "/home/xuanxuan/coding/WebServer/resources";
+
+
 // 静态成员初始化
 int http_conn::m_epollfd = -1;
 int http_conn::m_user_count = 0;
@@ -113,6 +128,7 @@ void http_conn::init(){
     bzero(m_read_buf,READ_BUFFER_SIZE);
     m_linger = false;
     m_host = 0;
+    m_content_length = 0;
 }
 
 // 主状态机，解析请求
@@ -166,13 +182,76 @@ http_conn::HTTP_CODE http_conn::process_read(){
 // 解析http请求行，获取请求方法，目标URL，HTTP版本
 http_conn::HTTP_CODE http_conn::parse_request_line(char*text){
     // GET / HTTP/1.1
-    m_url = strpbrk(text,"\t");
+    m_url = strpbrk(text," \t");
+
+    *m_url++ = '\0';
+    char* method = text;
+    if(strcasecmp(method,"GET") == 0){
+        m_method == GET;
+    }else{
+        return BAD_REQUEST;
+    }
+
+    m_version = strpbrk(m_url," \t");
+    if(!m_version){
+        return BAD_REQUEST;
+    }
+    *m_version++ = '\0';
+    if(strcasecmp(m_version,"HTTP1.1") != 0){
+        return BAD_REQUEST;
+    }
+    if(strncasecmp(m_url,"http://",7)){
+        m_url += 7;
+        m_url = strchr(m_url,'/');//找/第一次出现的索引
+    }
+    if(!m_url || m_url[0] != '/'){
+        return BAD_REQUEST;
+    }
+
+    // 主状态机状态变化
+    m_check_state = CHECK_STATE_HEADER;// 主状态机状态变成检查请求头
+    return NO_REQUEST;
 }
 http_conn::HTTP_CODE http_conn::parse_headers(char* text){
-
+    // 遇到空行，表示同步字段解析完毕。
+    if(text[0] == '\0'){
+        // 如果HTTP请求有消息体，则还需要读取m_content_length字节的消息体
+        if(m_content_length != 0){
+            m_check_state = CHECK_STATE_CONTENT;// 状态转义
+            return NO_REQUEST;
+        }
+        // 否则我们已经得到一个完整的HTTP请求
+        return GET_REQUEST;
+    }else if(strncasecmp(text,"Connection:",11) == 0){
+        // 处理Connection头部字段
+        text += 11;
+        text +=strspn(text," \t");
+        if(strcasecmp(text,"keep-alive") == 0){
+            m_linger = text;
+        }
+    }else if(strncasecmp(text,"Content-Length",15) == 0){
+        // 处理Content-Length头部字段
+        text += 15;
+        text += strspn(text," \t");
+        m_content_length = atol(text);
+    }else if(strncasecmp(text,"Host:",5)==0){
+        // 处理Host头部字段
+        text += 5;
+        text += strspn(text," \t");
+        m_host = text;
+    }else{
+        printf("oop! unkown header: %s\n",text);
+    }
+    return NO_REQUEST;
 }       
-http_conn::HTTP_CODE http_conn::parse_content(char* text){
 
+// 这里我们没有真正解析HTTP请求的消息体，只是判断它是否被完整的读入
+http_conn::HTTP_CODE http_conn::parse_content(char* text){
+    if(m_read_idx >= (m_content_length + m_checked_index)){
+        text[m_content_length]='\0';
+        return GET_REQUEST;
+    }
+    return NO_REQUEST;
 }
 
 // 解析一行数据，判断一行结尾/r/n
@@ -203,9 +282,11 @@ http_conn::LINE_STATUS http_conn::parse_line(){
     return LINE_OK;
 }                 
 
-
+// 响应
 http_conn::HTTP_CODE http_conn::do_request(){
-
+    // /home/xuanxuan/coding/WebServer/resources
+    // 真服了，tm这直接讲真不如带着敲，tm什么时候多出来这么多变量，jb倒是说一下啊，真服了。
+    // 直接学习项目敲自己的了,md。
 }
 
 // 由线程池中的工作线程调用，这是处理HTTP请求的入口函数
