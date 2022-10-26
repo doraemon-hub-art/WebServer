@@ -7,7 +7,7 @@ template<typename T>
 class thread_pool{
 
 public:
-    thread_pool();
+    thread_pool(int actor_model,);
     ~thread_pool();
 
 private:

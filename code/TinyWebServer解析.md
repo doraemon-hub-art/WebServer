@@ -3,4 +3,245 @@
 ## 总览
 
 >- config： 配置类
->- 
+>- log: 日志类
+>   - block_queue: 阻塞队列类
+
+
+
+
+***
+## 详解
+
+### block_queue 
+>阻塞队列: 
+>- 使用单例模式创建日志系统， 对服务器运行状态、错误信息和访问数据进行记录。
+>- 使用异步方式进行写入。
+>- 使用`生产者-消费者`模型进行封装，使用循环数组实现队列，作为两者共享的缓冲区。
+***
+#### 单例模式
+>- **单例模式**
+>   - 保证一个类只创建一个实例，同时提供全局访问的方法。该实例被所有程序模块共享。
+>       - 实现思路: 
+>           - 私有化构造函数，以防止外界创建单例类的对象；
+>           - 使用类的私有静态指针变量指向类的唯一实例，并用一个公有的静态方法获取该实例。
+>       - 懒汉模式:
+>           - 在第一次使用的时候才进行初始化。
+>       - 饿汉模式:
+>           - 在程序运行时立即初始化。
+***
+##### 懒汉模式
+>- 经典的线程安全懒汉模式，使用双检测锁模式。
+>- 代码示例:
+```C++
+class single{
+private:
+    // 私有静态指针变量指向唯一实例
+    static signle *p;
+
+    // 静态锁，因为类的静态函数只能访问静态成员
+    static pthread_mutex_t lock;
+
+    // 私有化构造函数
+    signle(){
+        pthread_mutex_init(&lock,NULL);
+    }
+    ~signle(){}
+public:
+    // 公有静态方法获取实例
+    static signle* getinstance();
+};
+// 初始化&函数定义
+pthread_mutex_t signale::lock;// 类内静态成员要在外定义
+single* single::p = NULL;
+single* single::getinstance(){
+    if(p == NULL){// 仅在第一次调用获取实例的时候加锁
+        pthread_mutex_lock(&lock);
+        if(p == NULL){
+            p = new single;
+        }
+        pthread_mutex_unlock(&lock);
+    }
+    // 第一次调用获取创建实例后，不用加锁了。
+    return p;
+}
+```
+>- 为什么要使用双检测锁?
+>   - 如果只检测一次，在每次调用获取实例的方法时，都需要加锁，这将严重影响程序性能。
+>   - 双层检测可以有效避免这种情况，仅在第一次创建单例的时候加锁，其它时候都不再符合NULL==P情况，直接返回已创建好的实例。
+***
+##### 局部静态变量之线程安全懒汉模式
+>- 上面的双检测锁，不是很优雅，《effective c++》中给出了更优雅的实现。——使用函数内的局部静态对象，这种方法不用加锁和解锁操作。
+>- 代码示例:
+```C++
+class single{
+private:
+    single(){}
+    ~single(){}
+public:
+    static single* getinstance();
+};
+
+single* single::getinstance(){
+    static single obj;// 每次进入函数调用都是同一个obj
+    return &obj;
+}
+```
+>- C++0X之后，要求编译器保证内部静态变量的线程安全性。
+>   - C++0X是C++11标准成为正式标准之前的草案临时名字。
+>- 所以，如果使用C++11之前的版本，同样要加锁，如下所示:
+```C++
+class single{
+private:
+    static pthread_mutex_t lock;
+    single(){
+        pthread_mutex_init(&lock,NULL);
+    }
+    ~single(){}
+public:
+    static single* getinstance();
+};
+
+single* single::getinstance(){
+    pthread_mutex_t single::lock;// 类内静态成员要在外定义
+    pthread_mutex_lock(&lock);
+    static single obj;
+    pthread_mutex_unlock(&lock);
+    return &obj;
+}
+```
+****
+#### 饿汉模式
+>- 饿汉模式不需要加锁，就可以实现线程安全。
+>   - 因为在程序运行时，就定义了对象，并对其初始化，所以之后不管那个线程调用getinstance()获取示例，都只不过是返回一个对象的指针而已。
+>   - 所以是线程安全的，不需要在获取实例的成员函数中加锁。
+>- 代码示例:
+```C++
+class signel{
+private:
+    static single* p;
+    single(){}
+    ~single(){}
+public:
+    static single* getinstance();
+};
+single* single::p = new single();
+single* single::getinstance(){
+    return p;
+}
+
+// 测试
+int main(){
+    single *p1 = single::getinstance();
+    single *p2 = single::getinstance();
+    if(p1 == p2)std::cout<<"same"<<std::endl;
+    return 0;
+}
+```
+>- 饿汉模式虽好，但是存在隐藏的问题，在于非静态对象(函数外的static对象)在不同编译单元中的初始化顺序是未定义的。如果在初始化完成之前调用getinstance()方法会返回一个未定义的实例。
+***
+#### 生产者-消费者模型
+>- **生产者-消费者模型**
+>   - 并发编程中经典模型，以多线程为例，为了实现线程间的数据同步，生产者线程与消费者线程共享一个缓冲区。
+>       - 一个线程往里面放(push)数据——即生产者
+>       - 一个线程从里面拿(pop)数据——即消费者
+***
+##### 信号量
+>- pthread_cond_wait函数，用于等待目标条件变量，该函数调用时需要传入mutex参数(加锁的互斥锁)，函数执行成功时，先把调用线程放入条件变量的请求队列中，然后将互斥锁mutex解锁，当函数成功返回为0时，表示重新抢到了互斥锁，互斥锁会再次被锁上，也就是说函数内部会有一次解锁和加锁操作。
+>- pthread_cond_wait方式如下:
+```C++
+pthread _mutex_lock(&mutex)
+while(线程执行的条件是否成立){
+    pthread_cond_wait(&cond, &mutex);
+}
+pthread_mutex_unlock(&mutex);
+```
+>- pthread_cond_wait执行后的内部操作分以下几步:
+>   - `将线程放在条件变量的请求队列后，内部解锁`(在之前先加锁)。
+>   - 线程等待被pthread_cond_broadcast信号唤醒或pthread_cond_signal信号唤醒，唤醒后去竞争锁。
+>   - 若竞争到互斥锁，内部`再次加锁`。(然后手动解锁)
+>   - 相关补充——[【操作系统】线程的使用](https://banshengua.top/%e3%80%90%e6%93%8d%e4%bd%9c%e7%b3%bb%e7%bb%9f%e3%80%91%e7%ba%bf%e7%a8%8b%e7%9a%84%e4%bd%bf%e7%94%a8/)
+***
+>- **使用前为什么要加锁？**
+>   - 多线程访问，为了避免资源竞争，所以要加锁，使得每个线程互斥访问共有资源。
+>- **pthread_cond_wait内部为什么要解锁?**
+>   - 如果while/if满足执行条件，线程便会调用pthread_cond_wait阻塞自己，此时它还在持有锁，如果它不解锁，那么其他线程将会无法访问公有资源。
+>- **为什么要把调用线程放入条件变量的请求队列后再解锁？**
+>   - 并发执行的线程，如果把A放在等待队列之前，就释放了互斥锁，其它线程就可以去访问共有资源，这时候线程A所等待的条件改变了，但是没有被放在等待队列上，导致A忽略了等待条件被满足的信号。
+>   - 若在线程A调用pthread_cond_wait开始，到把A放在等待队列的过程中，都持有互斥锁，其他线程就无法得到互斥锁，就不能改变公有资源。
+***
+>- `貌似: 条件变量的目的是等待某种条件，然后把对应的线程放在等待队列中。结合循环/条件判断使用，`详见下方示例代码。
+***
+>- **为什么判断线程执行的条件用while而不是if?**
+>   - 在多线程资源竞争的时候，在一个使用资源的线程里面(消费者)判断资源是否可用，如果不可用，便调用pthread_cond_wait,在另一个线程里面(生产者)如果判断资源可用的话，则调用pthread_cond_signal发送一个资源可用信号。
+>- 在wait成功之后，资源就一定可以被使用了吗?不。
+>   - 如果同时有两个或两个以上的线程正在等待此资源，wait返回后，资源可能已经被使用了。
+>- 再具体说，有可能有多个线程都在等待这个资源可用的信号，信号发出后只有一个资源可用，但是A,B两个线程都在等待。
+>   - B比较快，先获得互斥锁，然后加锁，消耗资源，然后解锁。
+>   - A之后获得互斥锁，这时候A发现资源已经被使用了，它有两个选择，去访问不存在的资源，或是，继续等待，继续的等待的话，就是使用while,否则使用pthread_cond_wait返回后，就会顺序执行下去。
+>- 当只有一个消费者的时候，使用if是OK的。
+***
+##### 生产者-消费者模型
+>- 生产者和消费者是互斥关系，两个对缓冲区访问互斥，同时生产者和消费者又是一个相互协作与同步关系，只有生产者生产之后，消费者才能消费。
+>- 代码示例: 来自《Unix环境高级编程》
+>   - process_msg相当于消费者
+>   - enqueue_msg相当于生产者
+>   - struct msg* workq作为缓冲队列
+```C++
+#include <pthread.h>
+struct msg{
+    struct msg* m_next;
+    // ... ... 
+};
+
+struct msg* workq;
+pthread_cond_t qready = PTHREAD_COND_INITIALIZER;// 初始化
+pthread_mutex_t qlock = PTHREAD_MUTEX_INITIALIZER;// 初始化
+
+void process_msg(){// 消费者
+    struct msg* mp;
+    for(;;){
+        pthread_mutex_lock(&qlock);
+        // 注意这里使用while
+        while(workq == NULL){
+            pthread_cond_wait(&qread,&qlock);
+        }
+        mq= workq;
+        workq = mp->m_next;
+        pthread_mutex_unlock(&qlock)
+
+    }
+}
+void enqueue_msg(struct msg*mp){// 生产者
+    pthread_mutex_lock(&qlock);
+    mp->m_next = workq;// 头插
+    wordp = mp;
+    pthread_mutex_unlock(&qlock);
+    // 此时另外一个线程在signal之前，执行了process_msg,刚好把mp元素拿走
+    pthread_cond_signal(&qready);
+    // 此时执行singal，在pthread_cond_wait等待线程被唤醒。
+    // 但是mp元素已经被另外一个线程拿走，所以，workq还是NULL,因此需要继续的等待。
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### 异步模式
+>- **异步模式**
+>   - 将要缩写的日志内容先存入阻塞队队列，写线程从中取出然后写入。
