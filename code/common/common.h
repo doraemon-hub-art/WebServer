@@ -22,6 +22,7 @@
 #include <semaphore.h>  
 #include <pthread.h>
 #include <iostream>
+#include <sys/time.h>
 
 
 static const int MAX_FD = 65535;// 最大文件描述符

@@ -120,7 +120,7 @@ template<typename T>
 bool block_queue<T>::pop(T &item){
     m_mutex.lock();
     // 循环等待有可用任务
-    while (m_size <= 0){
+    while (m_size <= 0){    
         if(!m_cond.wait(m_mutex.get())){
             m_mutex.unlock();
             return false;
@@ -128,11 +128,20 @@ bool block_queue<T>::pop(T &item){
     }
     // 取出来
     item = m_array[m_front];
-    m_mutex.unlock();
-    // 
+    // 同上，因为m_front初识-1
     m_front = (m_front+1)%m_max_size;
+    m_size--;
+    m_mutex.unlock();
+    return false;
+}
 
-
-
+template<typename T>
+bool block_queue<T>::pop(T &item,int ms_timeout){
+    // 高级用法花括号{}初始化
+    struct timespec t = {0,0};
+    struct timeval now = {0,0};
+    // 获取当前时间存到now中
+    gettimeofday(&now,NULL);
+    m_mutex.lock();
 }
 

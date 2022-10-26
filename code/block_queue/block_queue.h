@@ -46,7 +46,7 @@ private:
     locker m_mutex;
     cond m_cond;
 
-    T* m_array;     // 消息队列
+    T* m_array;     // 消息队列         
     int m_size;     // 当前消息长度
     int m_max_size; // 最大长度
     int m_front;    // 首元素index
