@@ -143,5 +143,24 @@ bool block_queue<T>::pop(T &item,int ms_timeout){
     // 获取当前时间存到now中
     gettimeofday(&now,NULL);
     m_mutex.lock();
+    if(m_size <= 0){// 没有可用任务，尝试等待
+        t.tv_sec = now.tv_sec + ms_timeout / 1000;
+        t.tv_nsec = (ms_timeout % 1000) * 1000;
+        if(!m_cond.timewait(m_mutex.get(),t)){
+            m_mutex.unlock();
+            return false;
+        }
+    }
+
+    if(m_size <= 0){
+        m_mutex.unlock();
+        return false;
+    }
+
+    m_front = (m_front + 1) % m_max_size;
+    item = m_array[m_front];
+    m_size--;
+    m_mutex.unlock();
+    return true;
 }
 

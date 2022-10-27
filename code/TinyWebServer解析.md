@@ -222,26 +222,58 @@ void enqueue_msg(struct msg*mp){// 生产者
     // 但是mp元素已经被另外一个线程拿走，所以，workq还是NULL,因此需要继续的等待。
 }
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #### 异步模式
 >- **异步模式**
 >   - 将要缩写的日志内容先存入阻塞队队列，写线程从中取出然后写入。
+***
+### log
+#### 相关API
+##### fputs
+>- fputs: 将数据写入字符串流。
+```C++
+#include <stdio.h>
+int fputs(const char* st,FILE* stream);
+```
+>- str: 一个数组包含了写入的以空字符终止的字符序列。
+>- stream: 指向FILE对象的指针，该FILE对象标识了要被写入字符串的流。
+***
+##### 可变参数宏
+>- 可变参数宏__VA_ARGS__
+>- 定义宏时参数列表的最后一个参数为省略号，在实际使用时会发有时会加## 有时不加。
+>- 代码示例
+```C++
+#define my_print1(...) printf(__VA_ARGS__)
+
+#define my_print2(format,...)printf(format,__VA_ARGS__)
+#define my_print3(format,...)printf(format,##__VA_ARGS__)
+```
+>- __VA_ARGS__宏前面的##作用在于，当可变参数的个数为0时，这里printf参数列表中的##会把前面多余的","去掉，否则会编译出错，建议使用，从而使得程序更加健壮。
+***
+##### fflush
+```C++
+#include <stdio.h>
+int fflush(FILE* stream);
+```
+>- fflush会强迫缓冲区内的数据写到参数stream指定的文件中，如果参数stream为NULL，fflush()会将所有打开的文件数据更新。
+>- 在使用多个输出函数进行多次输出到控制台时，有可能下一个数据,再上一个数据还没输出完毕，还在输出缓冲区的时候，就被printf加入到输出缓冲区，覆盖率原来的数据，出现输出错误。
+>- 在printf()后加上fflush(stdout)，强制马上输出到控制台，可以避免出现上述错误。
+***
+#### 流程图
+![](https://mmbiz.qpic.cn/mmbiz_jpg/6OkibcrXVmBEOjicsa8vpoLAlODicrC7AoM1h2eq9sDMdQY8TNYQoVckCRDd0m8SDH1myuB4gEJfejvznfZuJ3cpQ/640?wx_fmt=jpeg&wxfrom=5&wx_lazy=1&wx_co=1)
+>- 日志文件:
+>   - 局部变量的懒汉模式获取实例
+>   - 生成日志文件，并判断同步和异步写入方式
+>- 同步:
+>   - 判断是否分文件
+>   - 直接格式化输出内容，将信息写入日志文件
+>-  异步:
+>   - 判断是否分文件
+>   - 格式化输出内容，将内容写入阻塞队列，创建一个写线程，从阻塞队列中取出内容写入日志文件。
+***
+#### 日志类
+>- 使用局部变量的懒汉单例模式，创建日志实例，初始化生成日志文件后，格式化输出内容，并根据不同的写入方式执行对应的逻辑。
+
+>- 具体内容，详见代码中的注释。
+
+#### 补充:
+>- [va_list使用](https://www.cnblogs.com/qiwu1314/p/9844039.html)

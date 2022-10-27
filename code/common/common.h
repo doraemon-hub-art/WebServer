@@ -25,12 +25,6 @@
 #include <sys/time.h>
 
 
-static const int MAX_FD = 65535;// 最大文件描述符
-static const int MAX_EVENT_NUMBER = 10000; // 最大事件数
-
-
-
-
 
 
 #endif
