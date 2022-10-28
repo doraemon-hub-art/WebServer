@@ -23,6 +23,10 @@
 #include <pthread.h>
 #include <iostream>
 #include <sys/time.h>
+#include <list>
+#include <mysql/mysql.h>
+#include <cstdio>
+
 
 
 

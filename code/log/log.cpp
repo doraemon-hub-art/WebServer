@@ -20,6 +20,7 @@ void Log::flush(void){
 }
 
 bool Log::init(const char *file_name,
+               int close_log,
                int log_buf_size,
                int split_lines,
                int max_queue_size){
@@ -36,6 +37,7 @@ bool Log::init(const char *file_name,
         pthread_create(&tid,NULL,flush_log_thread,NULL);
     }
 
+    m_close_log = close_log;
     // 输出内容的长度
     m_log_buf_size = log_buf_size;// 设置日志缓冲区的大小
     m_buf = new char[m_log_buf_size];// 开辟空间
