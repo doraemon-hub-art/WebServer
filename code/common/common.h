@@ -26,9 +26,9 @@
 #include <list>
 #include <mysql/mysql.h>
 #include <cstdio>
-
-
-
+#include <sys/wait.h>
+#include <sys/uio.h>
+#include <time.h>
 
 
 #endif
