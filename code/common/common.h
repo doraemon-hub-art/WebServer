@@ -31,6 +31,6 @@
 #include <time.h>
 #include <assert.h>
 #include <map>
-
+#include <fstream>
 
 #endif
