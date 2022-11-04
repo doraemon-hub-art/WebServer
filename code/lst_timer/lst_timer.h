@@ -43,6 +43,7 @@ private:
     util_timer* tail;
 };
 
+// 操作定时器链表类
 class Utils{
    
 public:

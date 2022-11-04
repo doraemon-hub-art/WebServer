@@ -29,6 +29,8 @@
 #include <sys/wait.h>
 #include <sys/uio.h>
 #include <time.h>
+#include <assert.h>
+#include <map>
 
 
 #endif
